@@ -544,11 +544,6 @@
 </section>
 
 <!-- ===================== FIREBASE ===================== -->
-<!-- Replace the six placeholder values in FIREBASE_CONFIG below with your own
-     project's config (Firebase console → Project settings → General → Your apps
-     → SDK setup and configuration). These values are meant to be public — real
-     protection comes from the Firestore security rules and Authentication
-     below, not from hiding this object. -->
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
@@ -671,12 +666,11 @@
         'A community that turns curiosity into discovery.'
       ],
       whyJoinTagline: 'Join the movement \u2014 register now! \ud83e\uddea\u2728',
-   'Explore more': [
-  'Learn more about the Biology & Agriculture Club through these resources.',
-  'https://docs.google.com/document/d/1BVQfUosaL-pT72drdTBf8LvI_9oBts7Uq6gsgA1GEio/edit?usp=sharing',
-  'https://docs.google.com/document/d/1EFxASHrQ3ILSHprjHcGHMVTVUevu75R49zFKScFIUW4/edit?usp=sharing'
-],
-
+      exploreMore: [
+        'Learn more about the Biology & Agriculture Club through these resources.',
+        'https://docs.google.com/document/d/1BVQfUosaL-pT72drdTBf8LvI_9oBts7Uq6gsgA1GEio/edit?usp=sharing',
+        'https://docs.google.com/document/d/1EFxASHrQ3ILSHprjHcGHMVTVUevu75R49zFKScFIUW4/edit?usp=sharing'
+      ],
       whatsapp: 'https://chat.whatsapp.com/KT8HUoojkst3g3LaSVGNhg?mode=gi_t', website: 'https://docs.google.com/document/d/1BVQfUosaL-pT72drdTBf8LvI_9oBts7Uq6gsgA1GEio/edit?usp=sharing',
       icon: `<svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="24" cy="24" r="21" stroke="var(--c-bio)" stroke-width="2"/><path d="M16 32c0-9 6-16 16-16-1 10-7 16-16 16z" stroke="var(--c-bio)" stroke-width="2" stroke-linejoin="round"/><path d="M18 30l10-10" stroke="var(--c-bio)" stroke-width="2" stroke-linecap="round"/></svg>`
     },
@@ -707,19 +701,15 @@
 
   const MAX_SELECTIONS = 2;
 
-  // =========================================================
-  // STATE (mirrors the student's Firestore registration doc; the doc is
-  // the source of truth, this is just what's rendered right now)
-  // =========================================================
   const state = {
     studentKey: null,
     studentName: null,
     studentClass: null,
     studentSection: null,
     grade: null,
-    selected: [],       // array of club ids, max MAX_SELECTIONS
-    confirmed: false,   // has the student confirmed participation (from Firestore)
-    viewedDetail: new Set() // clubs whose detail page was opened this session (for analytics de-dup)
+    selected: [],       
+    confirmed: false,   
+    viewedDetail: new Set() 
   };
 
   function goTo(screen){
@@ -730,19 +720,6 @@
 
   function clubById(id){ return CLUBS.find(c => c.id === id); }
 
-  // =========================================================
-  // STUDENT IDENTITY (Firestore-backed, cross-device enforcement)
-  // Each student's registration lives at registrations/{studentKey}, where
-  // studentKey is built from name + class + section, so the 2-club cap
-  // holds even across refreshes, tabs, or different devices.
-  //
-  // Trade-off worth knowing: class + section alone isn't unique (many
-  // students share "10-B"), so the key includes their name too. Two
-  // students with the exact same name in the same class AND section would
-  // collide onto one registration. If that's a real risk at your school,
-  // consider adding a short field (a phone number's last 4 digits, a seat
-  // number, etc.) to make the key unique.
-  // =========================================================
   function slugPart(raw){
     return raw.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9\-]/g, '');
   }
@@ -785,8 +762,6 @@
       const snap = await registrationRef(studentKey).get();
       if(snap.exists){
         const data = snap.data();
-        // Returning student — resume their existing registration instead of
-        // letting them start a fresh one (that's the loophole we're closing).
         state.grade = data.grade || null;
         state.selected = Array.isArray(data.clubs) ? data.clubs.slice(0, MAX_SELECTIONS) : [];
         state.confirmed = !!data.confirmed;
@@ -824,9 +799,6 @@
     }
   }
 
-  // =========================================================
-  // GRADE → DIRECTORY
-  // =========================================================
   function handleGrade(grade){
     state.grade = grade;
     registrationRef(state.studentKey).update({
@@ -882,9 +854,6 @@
     renderTray();
   }
 
-  // =========================================================
-  // SELECTION TRAY (persists across clubs + detail screens)
-  // =========================================================
   function ensureTray(){
     let tray = document.getElementById('selection-tray');
     if(tray) return tray;
@@ -923,9 +892,6 @@
         const club = clubById(id);
         const chip = document.createElement('span');
         chip.className = 'tray-chip';
-        // No remove/× control here on purpose — once a club is selected it's
-        // locked in, so a student can't select, grab the WhatsApp link, remove
-        // it, then select another club to exceed the 2-club limit.
         chip.innerHTML = `${club.name}`;
         chips.appendChild(chip);
       });
@@ -934,9 +900,6 @@
     continueBtn.disabled = state.selected.length === 0;
   }
 
-  // Runs as a Firestore transaction so the 2-club cap holds even if the same
-  // student has two tabs/devices open at once — the server (not this browser)
-  // has the final say on whether a selection is allowed.
   async function addSelection(id){
     if(state.selected.includes(id)) return true;
     const ref = registrationRef(state.studentKey);
@@ -958,8 +921,6 @@
         state.selected = result.clubs;
         return true;
       }
-      // Server says no (likely already at the limit on another device) —
-      // reflect that locally so the UI doesn't lie about what happened.
       state.selected = result.clubs;
       return false;
     }catch(e){
@@ -968,14 +929,41 @@
     }
   }
 
-  // Selections are permanent once made — no removeSelection() by design.
-  // This is what keeps the "2 clubs max" limit meaningful and what makes
-  // participation tracking reliable (a student can't quietly drop a club
-  // after grabbing its WhatsApp link).
+  async function removeSelection(id){
+    if (state.confirmed) return false;
+    if (!state.selected.includes(id)) return true;
 
-  // =========================================================
-  // CLUB DETAIL
-  // =========================================================
+    const ref = registrationRef(state.studentKey);
+    try {
+      const result = await db.runTransaction(async (tx) => {
+        const doc = await tx.get(ref);
+        if (!doc.exists) return { ok: false, clubs: [] };
+        const data = doc.data();
+        if (data.confirmed) return { ok: false, clubs: data.clubs || [] };
+
+        const clubs = Array.isArray(data.clubs) ? data.clubs : [];
+        const updated = clubs.filter(cId => cId !== id);
+        
+        tx.set(ref, {
+          clubs: updated,
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+        
+        return { ok: true, clubs: updated };
+      });
+
+      if (result.ok) {
+        state.selected = result.clubs;
+        return true;
+      }
+      state.selected = result.clubs;
+      return false;
+    } catch(e) {
+      console.error('Could not remove selection', e);
+      return false;
+    }
+  }
+
   function showDetail(id){
     const club = clubById(id);
     if(!club) return;
@@ -1037,12 +1025,12 @@
     const exploreDescription = document.getElementById('detail-explore-description');
     const exploreLinks = document.getElementById('detail-explore-links');
 
-    if (club['Explore more'] && club['Explore more'].length >= 2) {
+    if (club.exploreMore && club.exploreMore.length >= 2) {
       exploreSection.style.display = '';
-      exploreDescription.textContent = club['Explore more'][0];
+      exploreDescription.textContent = club.exploreMore[0];
       exploreLinks.innerHTML = '';
 
-      club['Explore more'].slice(1).forEach((url, index) => {
+      club.exploreMore.slice(1).forEach((url, index) => {
         const link = document.createElement('a');
         link.className = 'explore-link';
         link.href = url;
@@ -1061,8 +1049,6 @@
     renderTray();
   }
 
-  // Shows/hides the optional photo above a detail section. Pass '' as the
-  // image to skip it — nothing renders and no broken-image icon appears.
   function setFigure(section, imageUrl, caption){
     const holder = document.getElementById('detail-figure-' + section);
     if(!imageUrl){
@@ -1083,46 +1069,58 @@
     const isSelected = state.selected.includes(club.id);
     const atLimit = state.selected.length >= MAX_SELECTIONS && !isSelected;
 
-    // Once selected, a club is locked in — no click-to-remove. This keeps
-    // the 2-club cap meaningful and keeps participation tracking accurate.
-    btn.textContent = isSelected ? '✓ Joined' : (atLimit ? 'Selection limit reached' : 'Select this club');
-    btn.className = 'btn-select' + (isSelected ? ' is-selected' : '');
-    btn.disabled = isSelected || atLimit;
-    note.textContent = atLimit
-      ? 'You have already joined the maximum of 2 clubs.'
-      : (isSelected ? 'This club is in your list and can\u2019t be undone here. You can still pick one more.' : 'Select this club to add it to your list (up to 2 total). This can\u2019t be undone once chosen.');
-
-    btn.onclick = async () => {
-      if(isSelected || atLimit) return;
-      btn.disabled = true;
-      btn.textContent = 'Joining\u2026';
-      const added = await addSelection(club.id);
-      renderDetailSelectButton(club);
-      renderTray();
-      if(added){
-        showSelectionWarning(club);
+    if (isSelected) {
+      if (state.confirmed) {
+        btn.textContent = '✓ Joined';
+        btn.className = 'btn-select is-selected';
+        btn.disabled = true;
+        note.textContent = 'Your selection is confirmed and cannot be changed.';
       } else {
-        note.textContent = 'You\u2019ve already joined the maximum of 2 clubs (this may have happened on another device).';
-        renderClubs();
+        btn.textContent = 'Cancel selection';
+        btn.className = 'btn-secondary';
+        btn.style.width = '100%';
+        btn.disabled = false;
+        note.textContent = 'You have selected this club. You can cancel it now before confirming your participation.';
+        
+        btn.onclick = async () => {
+          btn.disabled = true;
+          btn.textContent = 'Removing…';
+          await removeSelection(club.id);
+          renderDetailSelectButton(club);
+          renderTray();
+        };
       }
-    };
+    } else {
+      btn.style.width = '';
+      btn.textContent = atLimit ? 'Selection limit reached' : 'Select this club';
+      btn.className = 'btn-select';
+      btn.disabled = atLimit;
+      note.textContent = atLimit
+        ? 'You have already selected the maximum of 2 clubs. Cancel one to pick another.'
+        : 'Select this club to add it to your list (up to 2 total).';
 
-    // The WhatsApp link is intentionally NOT shown here. It only becomes
-    // available on the "Your selected clubs" (join) page, which students
-    // reach after acknowledging the selection-limit warning.
+      btn.onclick = async () => {
+        if (atLimit) return;
+        btn.disabled = true;
+        btn.textContent = 'Joining…';
+        const added = await addSelection(club.id);
+        renderDetailSelectButton(club);
+        renderTray();
+        if (added) {
+          showSelectionWarning(club);
+        } else {
+          note.textContent = 'You have already joined the maximum of 2 clubs.';
+          renderClubs();
+        }
+      };
+    }
+
     const waWrap = document.getElementById('detail-whatsapp-wrap');
     waWrap.innerHTML = isSelected
-      ? `<p class="sidebar-note" style="margin-top:.4rem;">This club is in your list. Your join link is on your <button class="btn-text" style="padding:0;font-size:.85rem;" onclick="renderJoin();goTo('join')">selected clubs page &rarr;</button></p>`
+      ? `<p class="sidebar-note" style="margin-top:.4rem;">This club is in your list. View status on your <button class="btn-text" style="padding:0;font-size:.85rem;" onclick="renderJoin();goTo('join')">selected clubs page &rarr;</button></p>`
       : '';
   }
 
-  // =========================================================
-  // SELECTION WARNING MODAL
-  // Shown every time a club is newly selected. No close/X and no
-  // backdrop-dismiss — the only way forward is the Continue button,
-  // which takes the student to the join page where the WhatsApp
-  // link for their selected club(s) is revealed.
-  // =========================================================
   function ensureModalHost(){
     let host = document.getElementById('modal-host');
     if(!host){
@@ -1161,9 +1159,6 @@
     if(host) host.innerHTML = '';
   }
 
-  // =========================================================
-  // JOIN SCREEN
-  // =========================================================
   function renderJoin(){
     const body = document.getElementById('join-body');
     body.innerHTML = '';
@@ -1172,8 +1167,6 @@
       return;
     }
 
-    // Confirmation comes first and gates the join links below — participation
-    // tracking shouldn't depend on students scrolling past it.
     const confirmBox = document.createElement('div');
     confirmBox.className = 'confirm-box';
     confirmBox.id = 'confirm-box';
@@ -1200,11 +1193,21 @@
           <div class="club-icon">${club.icon}</div>
           <div class="join-card-body">
             <h3>${club.name}</h3>
-            <p style="color:#4B463A;font-size:.9rem;margin:0;">
+            <p style="color:#4B463A;font-size:.9rem;margin:0 0 .8rem 0;">
               Confirm your participation above to unlock this club's WhatsApp link.
             </p>
+            <button class="btn-danger-outline btn-remove-club" data-id="${club.id}">
+              Remove selection
+            </button>
           </div>
         `;
+        card.querySelector('.btn-remove-club').onclick = async (e) => {
+          const btn = e.target;
+          btn.disabled = true;
+          btn.textContent = 'Removing…';
+          await removeSelection(club.id);
+          renderJoin();
+        };
         body.appendChild(card);
         return;
       }
@@ -1213,35 +1216,31 @@
         <div class="club-icon">${club.icon}</div>
         <div class="join-card-body">
           <h3>${club.name}</h3>
-       <p style="color:#4B463A;font-size:.9rem;margin:0;">
-  Tap below to open the club's WhatsApp group${club.website ? ', website,' : ''} or explore more.
-</p>
-
-<div class="join-links">
-  <a class="btn-whatsapp" href="${club.whatsapp}" target="_blank" rel="noopener" data-id="${club.id}">
-    Open WhatsApp group ↗
-  </a>
-
-  ${club.website ? `
-  <a class="btn-website" href="${club.website}" target="_blank" rel="noopener" data-id="${club.id}">
-    Visit club website ↗
-  </a>
-  ` : ''}
-
-  ${club['Explore more'] ? `
-    <div class="explore-more">
-      <h4>Explore more</h4>
-      <p>${club['Explore more'][0]}</p>
-      <a href="${club['Explore more'][1]}" target="_blank" rel="noopener">
-        Open first link ↗
-      </a>
-      <a href="${club['Explore more'][2]}" target="_blank" rel="noopener">
-        Open second link ↗
-      </a>
-    </div>
-  ` : ''}
-</div>
-
+          <p style="color:#4B463A;font-size:.9rem;margin:0;">
+            Tap below to open the club's WhatsApp group${club.website ? ', website,' : ''} or explore more.
+          </p>
+          <div class="join-links">
+            <a class="btn-whatsapp" href="${club.whatsapp}" target="_blank" rel="noopener" data-id="${club.id}">
+              Open WhatsApp group ↗
+            </a>
+            ${club.website ? `
+            <a class="btn-website" href="${club.website}" target="_blank" rel="noopener" data-id="${club.id}">
+              Visit club website ↗
+            </a>
+            ` : ''}
+            ${club.exploreMore ? `
+              <div class="explore-more">
+                <h4>Explore more</h4>
+                <p>${club.exploreMore[0]}</p>
+                <a href="${club.exploreMore[1]}" target="_blank" rel="noopener">
+                  Open first link ↗
+                </a>
+                <a href="${club.exploreMore[2]}" target="_blank" rel="noopener">
+                  Open second link ↗
+                </a>
+              </div>
+            ` : ''}
+          </div>
         </div>
       `;
       card.querySelector('.btn-whatsapp').addEventListener('click', () => bumpCounter(`linkClicks.${club.id}_whatsapp`));
@@ -1270,12 +1269,6 @@
     renderJoin();
   }
 
-
-  // =========================================================
-  // LIGHTWEIGHT COUNTERS (page views / link clicks — not tied to a student)
-  // Stored in a single meta/counters doc using dotted field paths so each
-  // click is just one small increment, not a full collection read+write.
-  // =========================================================
   const countersRef = db.collection('meta').doc('counters');
 
   async function bumpCounter(path){
@@ -1286,9 +1279,6 @@
     }
   }
 
-  // =========================================================
-  // ADMIN
-  // =========================================================
   let adminAuthReady = false;
 
   async function handleAdminLogin(){
